@@ -40,6 +40,10 @@ setInterval(() => {
   }
 }, 60000);
 
+app.get('/', (req, res) => {
+  res.send('EmulatorJS Netplay Server is running');
+});
+
 app.get('/list', (req, res) => {
   const gameId = req.query.game_id;
   const openRooms = Object.keys(rooms)
@@ -92,7 +96,7 @@ io.on('connection', (socket) => {
 
     let finalDomain = data.extra.domain;
     if (finalDomain === undefined || finalDomain === null) {
-        finalDomain = 'unknown';
+      finalDomain = 'unknown';
     }
 
     rooms[sessionId] = {
@@ -114,38 +118,38 @@ io.on('connection', (socket) => {
 
   socket.on('join-room', (data, callback) => {
     const { sessionid: sessionId, userid: playerId, player_name: playerName = 'Unknown' } = data.extra || {};
-    
+
     if (!sessionId || !playerId) {
-        if (typeof callback === 'function') callback('Invalid data: sessionId and playerId required');
-        return;
+      if (typeof callback === 'function') callback('Invalid data: sessionId and playerId required');
+      return;
     }
 
     const room = rooms[sessionId];
     if (!room) {
-        if (typeof callback === 'function') callback('Room not found');
-        return;
+      if (typeof callback === 'function') callback('Room not found');
+      return;
     }
 
     const roomPassword = data.password || null;
     if (room.password && room.password !== roomPassword) {
-        if (typeof callback === 'function') callback('Incorrect password');
-        return;
+      if (typeof callback === 'function') callback('Incorrect password');
+      return;
     }
-    
+
     if (Object.keys(room.players).length >= room.maxPlayers) {
-        if (typeof callback === 'function') callback('Room full');
-        return;
+      if (typeof callback === 'function') callback('Room full');
+      return;
     }
-    
+
     room.players[playerId] = { ...data.extra, socketId: socket.id };
     socket.join(sessionId);
     socket.sessionId = sessionId;
     socket.playerId = playerId;
-    
+
     io.to(sessionId).emit('users-updated', room.players);
-    
+
     if (typeof callback === 'function') {
-        callback(null, room.players);
+      callback(null, room.players);
     }
   });
 
@@ -190,30 +194,30 @@ io.on('connection', (socket) => {
 
   socket.on('webrtc-signal', (data) => {
     try {
-        const { target, candidate, offer, answer, requestRenegotiate } = data || {};
-        
-        if (!target && !requestRenegotiate) {
-            throw new Error('Target ID missing unless requesting renegotiation');
+      const { target, candidate, offer, answer, requestRenegotiate } = data || {};
+
+      if (!target && !requestRenegotiate) {
+        throw new Error('Target ID missing unless requesting renegotiation');
+      }
+
+      if (requestRenegotiate) {
+        const targetSocket = io.sockets.sockets.get(target);
+        if (targetSocket) {
+          targetSocket.emit('webrtc-signal', {
+            sender: socket.id,
+            requestRenegotiate: true,
+          });
         }
-        
-        if (requestRenegotiate) {
-            const targetSocket = io.sockets.sockets.get(target);
-            if (targetSocket) {
-                targetSocket.emit('webrtc-signal', {
-                    sender: socket.id,
-                    requestRenegotiate: true,
-                });
-            }
-        } else {
-            io.to(target).emit('webrtc-signal', {
-                sender: socket.id,
-                candidate,
-                offer,
-                answer,
-            });
-        }
+      } else {
+        io.to(target).emit('webrtc-signal', {
+          sender: socket.id,
+          candidate,
+          offer,
+          answer,
+        });
+      }
     } catch (error) {
-        console.error(`WebRTC signal error: ${error.message}`);
+      console.error(`WebRTC signal error: ${error.message}`);
     }
   });
 
